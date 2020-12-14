@@ -134,6 +134,7 @@ func (s routeStrategy) allocateHost(ctx context.Context, route *routeapi.Route) 
 func (s routeStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	route := obj.(*routeapi.Route)
 	errs := s.allocateHost(ctx, route)
+	errs = append(errs, validation.ValidateHost(route)...)
 	errs = append(errs, validation.ValidateRoute(route)...)
 	return errs
 }
