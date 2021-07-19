@@ -13,8 +13,8 @@ type openshiftInformersInitializer struct {
 
 func NewOpenShiftInformersInitializer(
 	configInformers configinformers.SharedInformerFactory,
-	routeInformers  routeinformers.SharedInformerFactory,
-	) *openshiftInformersInitializer {
+	routeInformers routeinformers.SharedInformerFactory,
+) *openshiftInformersInitializer {
 	return &openshiftInformersInitializer{
 		configInformers: configInformers,
 		routeInformers:  routeInformers,

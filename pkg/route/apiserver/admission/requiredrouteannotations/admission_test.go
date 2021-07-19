@@ -301,14 +301,14 @@ func TestValidate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		admitter.(*requiredRouteAnnotations).routeLister = routeLister
-		admitter.(*requiredRouteAnnotations).nsLister = nsLister
-		admitter.(*requiredRouteAnnotations).ingressLister = ingressLister
-		admitter.(*requiredRouteAnnotations).cachesToSync = append(admitter.(*requiredRouteAnnotations).cachesToSync, func() bool { return true })
-		admitter.(*requiredRouteAnnotations).cachesToSync = append(admitter.(*requiredRouteAnnotations).cachesToSync, func() bool { return true })
-		admitter.(*requiredRouteAnnotations).cachesToSync = append(admitter.(*requiredRouteAnnotations).cachesToSync, func() bool { return true })
+		admitter.routeLister = routeLister
+		admitter.nsLister = nsLister
+		admitter.ingressLister = ingressLister
+		admitter.cachesToSync = append(admitter.cachesToSync, func() bool { return true })
+		admitter.cachesToSync = append(admitter.cachesToSync, func() bool { return true })
+		admitter.cachesToSync = append(admitter.cachesToSync, func() bool { return true })
 
-		if err = admitter.(admission.InitializationValidator).ValidateInitialization(); err != nil {
+		if err = admitter.ValidateInitialization(); err != nil {
 			t.Fatalf("validation error: %v", err)
 		}
 		a := admission.NewAttributesRecord(
@@ -324,7 +324,7 @@ func TestValidate(t *testing.T) {
 			false,
 			&user.DefaultInfo{Name: "test-user"},
 		)
-		err = admitter.(admission.ValidationInterface).Validate(context.TODO(), a, nil)
+		err = admitter.Validate(context.TODO(), a, nil)
 		switch {
 		case !tc.expectForbidden && err != nil:
 			t.Errorf("%q: got unexpected error for: %v", tc.description, err)

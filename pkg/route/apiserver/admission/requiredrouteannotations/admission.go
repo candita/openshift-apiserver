@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"k8s.io/client-go/tools/cache"
 	"regexp"
 	"strconv"
 	"strings"
@@ -18,12 +17,16 @@ import (
 	"k8s.io/apiserver/pkg/admission/initializer"
 	"k8s.io/client-go/informers"
 	corev1listers "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	logger "k8s.io/klog/klogr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
+	routeinformers "github.com/openshift/client-go/route/informers/externalversions"
 	routev1listers "github.com/openshift/client-go/route/listers/route/v1"
+	openshiftapiserveradmission "github.com/openshift/openshift-apiserver/pkg/admission"
 	routeapi "github.com/openshift/openshift-apiserver/pkg/route/apis/route"
 )
 
@@ -53,8 +56,8 @@ type requiredRouteAnnotations struct {
 // Ensure that the required OpenShift admission interfaces are implemented.
 var _ = initializer.WantsExternalKubeInformerFactory(&requiredRouteAnnotations{})
 var _ = admission.ValidationInterface(&requiredRouteAnnotations{})
-
-//var _ = openshiftadmission.WantsOpenShiftInformerAccess(&requiredRouteAnnotations{})
+var _ = openshiftapiserveradmission.WantsOpenShiftConfigInformers(&requiredRouteAnnotations{})
+var _ = openshiftapiserveradmission.WantsOpenShiftRouteInformers(&requiredRouteAnnotations{})
 
 const hstsAnnotation = "haproxy.router.openshift.io/hsts_header"
 
@@ -89,38 +92,6 @@ func (o *requiredRouteAnnotations) Validate(ctx context.Context, a admission.Att
 	return nil
 }
 
-/*
-func (o *requiredRouteAnnotations) SetRESTClientConfig(restClientConfig rest.Config) {
-	var err error
-
-	configClient, err := configv1client.NewForConfig(&restClientConfig)
-	if err != nil {
-		utilruntime.HandleError(err)
-		return
-	}
-
-	// Use an informer for config.  Get the informer factory.
-	configInformers := configv1informers.NewSharedInformerFactory(configClient, timeToWaitForCacheSync)
-
-	// Set the flag if the informer has synced
-	o.ingressListerSynced = configInformers.Config().V1().Ingresses().Informer().HasSynced
-
-	// Set the ingresses Lister from the factory
-	o.ingressLister = configInformers.Config().V1().Ingresses().Lister()
-
-	// Start the informer
-	stopChan := make(chan struct{})
-	defer close(stopChan)
-	go configInformers.Start(stopChan)
-
-	o.routeClient, err = routetypedclient.NewForConfig(&restClientConfig)
-	if err != nil {
-		utilruntime.HandleError(err)
-		return
-	}
-}
-*/
-
 func (o *requiredRouteAnnotations) SetExternalKubeInformerFactory(kubeInformers informers.SharedInformerFactory) {
 	o.nsLister = kubeInformers.Core().V1().Namespaces().Lister()
 	//o.nsListerSynced = kubeInformers.Core().V1().Namespaces().Informer().HasSynced
@@ -149,20 +120,11 @@ func (o *requiredRouteAnnotations) ValidateInitialization() error {
 	return nil
 }
 
-func NewRequiredRouteAnnotations() (admission.Interface, error) {
+func NewRequiredRouteAnnotations() (*requiredRouteAnnotations, error) {
 	return &requiredRouteAnnotations{
 		Handler: admission.NewHandler(admission.Create, admission.Update),
 	}, nil
 }
-
-/*
-func (o *requiredRouteAnnotations) SetOpenShiftInformerAccess(access openshiftadmission.InformerAccess) {
-	o.cachesToSync = append(o.cachesToSync, access.GetOpenshiftConfigInformers().Config().V1().Ingresses().Informer().HasSynced)
-	o.ingressLister = access.GetOpenshiftConfigInformers().Config().V1().Ingresses().Lister()
-	o.cachesToSync = append(o.cachesToSync, access.GetOpenshiftRouteInformers().Route().V1().Routes().Informer().HasSynced)
-	o.routeLister = access.GetOpenshiftRouteInformers().Route().V1().Routes().Lister()
-}
-*/
 
 // isRouteHSTSAllowed returns nil if the route is allowed.  Otherwise, returns details and a suggestion in the error
 func isRouteHSTSAllowed(ingress *configv1.Ingress, newRoute *routeapi.Route, namespace *corev1.Namespace) error {
@@ -334,4 +296,14 @@ func matchesNamespaceSelector(nsSelector *metav1.LabelSelector, namespace *corev
 func getParsedNamespaceSelector(nsSelector *metav1.LabelSelector) (labels.Selector, error) {
 	// TODO cache this result to save time
 	return metav1.LabelSelectorAsSelector(nsSelector)
+}
+
+func (o *requiredRouteAnnotations) SetOpenShiftRouteInformers(informers routeinformers.SharedInformerFactory) {
+	o.cachesToSync = append(o.cachesToSync, informers.Route().V1().Routes().Informer().HasSynced)
+	o.routeLister = informers.Route().V1().Routes().Lister()
+}
+
+func (o *requiredRouteAnnotations) SetOpenShiftConfigInformers(informers configinformers.SharedInformerFactory) {
+	o.cachesToSync = append(o.cachesToSync, informers.Config().V1().Ingresses().Informer().HasSynced)
+	o.ingressLister = informers.Config().V1().Ingresses().Lister()
 }
